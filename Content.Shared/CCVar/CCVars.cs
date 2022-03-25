@@ -255,23 +255,27 @@ namespace Content.Shared.CCVar
             CVarDef.Create("traitordm.starting_balance", 20);
             
         /*
-         * Traitor
+         * Nuclear
          */
 
-        public static readonly CVarDef<int> TraitorMinPlayers =
-            CVarDef.Create("traitor.min_players", 5);
+        public static readonly CVarDef<int> NuclearMinPlayers =
+            CVarDef.Create("nuclear.min_players", 5);
+            
+        public static readonly CVarDef<int> NuclearMinOperatives =
+            CVarDef.Create("nuclear.min_operatives", 2);
+            
+        public static readonly CVarDef<int> NuclearMaxOperatives =
+            CVarDef.Create("nuclear.max_operatives", 8);
 
-        public static readonly CVarDef<int> TraitorMaxTraitors =
-            CVarDef.Create("traitor.max_traitors", 7);
+        public static readonly CVarDef<int> NuclearPlayersPerOperative =
+            CVarDef.Create("nuclear.players_per_operative", 8);
 
-        public static readonly CVarDef<int> TraitorPlayersPerTraitor =
-            CVarDef.Create("traitor.players_per_traitor", 5);
+        public static readonly CVarDef<int> NuclearCodewordCount =
+            CVarDef.Create("nuclear.codeword_count", 4);
 
-        public static readonly CVarDef<int> TraitorCodewordCount =
-            CVarDef.Create("traitor.codeword_count", 4);
-
-        public static readonly CVarDef<int> TraitorStartingBalance =
-            CVarDef.Create("traitor.starting_balance", 20); 
+        // They receive 1 loadout + this TC starting balance to buy whatever else they'd like       .
+        public static readonly CVarDef<int> NuclearStartingBalance =
+            CVarDef.Create("nuclear.starting_balance", 10); 
 
         /*
          * Console

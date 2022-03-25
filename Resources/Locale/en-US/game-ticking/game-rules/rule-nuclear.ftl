@@ -1,0 +1,1 @@
+rule-nuclear-added-announcement = Hello crew! Have a good shift!

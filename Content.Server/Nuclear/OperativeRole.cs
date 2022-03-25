@@ -20,13 +20,13 @@ namespace Content.Server.Nuclear
         public override string Name { get; }
         public override bool Antagonist { get; }
 
-        public void GreetTraitor(string[] codewords)
+        public void GreetOperative(string[] codewords)
         {
             if (Mind.TryGetSession(out var session))
             {
                 var chatMgr = IoCManager.Resolve<IChatManager>();
-                chatMgr.DispatchServerMessage(session, Loc.GetString("traitor-role-greeting"));
-                chatMgr.DispatchServerMessage(session, Loc.GetString("traitor-role-codewords", ("codewords", string.Join(", ",codewords))));
+                chatMgr.DispatchServerMessage(session, Loc.GetString("operative-role-greeting"));
+                chatMgr.DispatchServerMessage(session, Loc.GetString("operative-role-codewords", ("codewords", string.Join(", ",codewords))));
             }
         }
     }

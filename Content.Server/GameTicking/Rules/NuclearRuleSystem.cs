@@ -5,14 +5,12 @@ using Content.Server.Chat.Managers;
 using Content.Server.Objectives.Interfaces;
 using Content.Server.Players;
 using Content.Server.Roles;
-using Content.Server.Traitor;
-using Content.Server.Traitor.Uplink;
-using Content.Server.Traitor.Uplink.Account;
+using Content.Server.Spawners.Component;
+using Content.Server.Nuclear;
 using Content.Shared.CCVar;
 using Content.Shared.Dataset;
 using Content.Shared.Roles;
 using Content.Shared.Sound;
-using Content.Shared.Traitor.Uplink;
 using Robust.Server.Player;
 using Robust.Shared.Audio;
 using Robust.Shared.Configuration;
@@ -47,8 +45,10 @@ public sealed class NuclearRuleSystem : GameRuleSystem
     public override void Initialize()
     {
         base.Initialize();
-
+        
+        SubscribeLocalEvent<LoadingMapsEvent>(LoadMaps);
         SubscribeLocalEvent<RoundStartAttemptEvent>(OnStartAttempt);
+        SubscribeLocalEvent<RulePlayerSpawningEvent>(SpawnOperatives);
         SubscribeLocalEvent<RulePlayerJobsAssignedEvent>(OnPlayersSpawned);
         SubscribeLocalEvent<RoundEndTextAppendEvent>(OnRoundEndText);
     }
@@ -56,13 +56,19 @@ public sealed class NuclearRuleSystem : GameRuleSystem
     public override void Started()
     {
         // This seems silly, but I'll leave it.
-        _chatManager.DispatchServerAnnouncement(Loc.GetString("rule-traitor-added-announcement"));
+        _chatManager.DispatchServerAnnouncement(Loc.GetString("rule-nuclear-added-announcement"));
     }
 
     public override void Ended()
     {
         _operatives.Clear();
     }
+    
+    private void LoadMaps(LoadingMapsEvent ev)
+    {
+        // Add syndi maps to map list
+        //ev.Maps.Add(Map);
+    } 
 
     private void OnStartAttempt(RoundStartAttemptEvent ev)
     {
@@ -72,95 +78,125 @@ public sealed class NuclearRuleSystem : GameRuleSystem
         var minPlayers = _cfg.GetCVar(CCVars.NuclearMinPlayers);
         if (!ev.Forced && ev.Players.Length < minPlayers)
         {
-            _chatManager.DispatchServerAnnouncement(Loc.GetString("traitor-not-enough-ready-players", ("readyPlayersCount", ev.Players.Length), ("minimumPlayers", minPlayers)));
+            _chatManager.DispatchServerAnnouncement(Loc.GetString("nuclear-not-enough-ready-players", ("readyPlayersCount", ev.Players.Length), ("minimumPlayers", minPlayers)));
             ev.Cancel();
             return;
         }
 
         if (ev.Players.Length == 0)
         {
-            _chatManager.DispatchServerAnnouncement(Loc.GetString("traitor-no-one-ready"));
+            _chatManager.DispatchServerAnnouncement(Loc.GetString("nuclear-no-one-ready"));
             ev.Cancel();
             return;
         }
     }
-
-    private void OnPlayersSpawned(RulePlayerJobsAssignedEvent ev)
+    
+    private void SpawnOperative(RulePlayerSpawningEvent ev)
     {
         if (!Enabled)
             return;
-
-        var operativesPerPlayers = _cfg.GetCVar(CCVars.OperativesPerPlayers);
-        var maxOperatives = _cfg.GetCVar(CCVars.NuclearMaxOperatives);
+        
+        // Get config    
+        var minPlayers = _cfg.GetCVar(CCVars.NuclearMinPlayers);
         var minOperatives = _cfg.GetCVar(CCVars.NuclearMinOperatives);
+        var maxOperatives = _cfg.GetCVar(CCVars.NuclearMaxOperatives);
+        var playersPerOperative = _cfg.GetCVar(CCVars.NuclearPlayersPerOperative);
         var codewordCount = _cfg.GetCVar(CCVars.NuclearCodewordCount);
         var startingBalance = _cfg.GetCVar(CCVars.NuclearStartingBalance);
-
-        var list = new List<IPlayerSession>(ev.Players).Where(x =>
-            x.Data.ContentData()?.Mind?.AllRoles.All(role => role is not Job {CanBeAntag: false}) ?? false
-        ).ToList();
-
-        var prefList = new List<IPlayerSession>();
-
-        foreach (var player in list)
+        
+        // Get candidate list
+        var prefList = new List<IPlayerSession>(ev.Players);
+        
+        foreach (var player in prefList)
         {
             if (!ev.Profiles.ContainsKey(player.UserId))
             {
+                prefList.Remove(player)
                 continue;
             }
-            var profile = ev.Profiles[player.UserId];
-            if (profile.AntagPreferences.Contains(OperativePrototypeID))
+            if (!ev.Profiles[player.UserId].AntagPreferences.Contains(OperativePrototypeID))
             {
-                prefList.Add(player);
+                prefList.Remove(player)
             }
         }
-
-        var numOperatives = MathHelper.Clamp(ev.Players.Length / operativesPerPlayers,
-            minOperatives, maxOperatives);
-
+        
+        // Choose operatives
+        var numOperatives = MathHelper.Clamp(ev.Players.Length / playersPerOperative, minOperatives, maxOperatives);
+        
         for (var i = 0; i < numOperatives; i++)
         {
             IPlayerSession operative;
-            if(prefList.Count == 0)
+            if (prefList.Count == 0)
             {
-                if (list.Count == 0)
+                if (ev.Players.Count == 0)
                 {
                     Logger.InfoS("preset", "Insufficient ready players to fill up operatives, stopping the selection.");
                     break;
                 }
-                operative = _random.PickAndTake(list);
+                operative = _random.PickAndTake(ev.Players);
                 Logger.InfoS("preset", "Insufficient preferred operatives, picking at random.");
             }
             else
             {
                 operative = _random.PickAndTake(prefList);
-                list.Remove(operative);
+                ev.Players.Remove(operative)
                 Logger.InfoS("preset", "Selected a preferred operative.");
             }
-            var mind = traitor.Data.ContentData()?.Mind;
+            
+            var mind = operative.Data.ContentData()?.Mind;
             if (mind == null)
             {
                 Logger.ErrorS("preset", "Failed getting mind for picked operative.");
                 continue;
             }
-
-            // Give Agent card with telecrystals
-            DebugTools.AssertNotNull(mind.OwnedEntity);
-
-            /*var uplinkAccount = new UplinkAccount(startingBalance, mind.OwnedEntity!);
-            var accounts = EntityManager.EntitySysManager.GetEntitySystem<UplinkAccountsSystem>();
-            accounts.AddNewAccount(uplinkAccount);
-
-            if (!EntityManager.EntitySysManager.GetEntitySystem<UplinkSystem>()
-                    .AddUplink(mind.OwnedEntity!.Value, uplinkAccount))
-                continue;*/
-
+            
             var antagPrototype = _prototypeManager.Index<AntagPrototype>(OperativePrototypeID);
             var operativeRole = new OperativeRole(mind, antagPrototype);
             mind.AddRole(operativeRole);
-            _traitors.Add(operativeRole);
+            _operatives.Add(operativeRole);
+        } 
+        
+        // Find Syndicate Station
+        var station;
+        foreach (var (point, transform) in EntityManager.EntityQuery<SpawnPointComponent, TransformComponent>(true))
+        {
+            if (point.Job == OperativePrototypeID)
+            {
+                var matchingStation = EntityManager.TryGetComponent<StationComponent>(transform.ParentUid, out var stationComponent);
+                if (stationComponent.Station != null)
+                {
+                    station = stationComponent.Station;
+                }
+            }
         }
+        
+        if (station == null)
+        {
+            Logger.ErrorS("preset", "Failed finding station for Nuclear mode.");
+        }
+        
+        // Spawn Operatives
+        foreach (var player in _operatives)
+        {
+            var character = GetPlayerProfile(plaver);
 
+            PlayerJoinGame(player);
+            
+            var mind = player.ContentData()?.Mind;
+            DebugTools.AssertNotNull(mind):
+            
+            var mob = SpawnPlayerMob(OperativeRole, character, station, false);
+            mind.TransferTo(mob);
+        }
+        
+        // Pick Commander
+        // Generate Group name
+        // Assign ID w/ balance
+    }
+
+    private void OnPlayersSpawned(RulePlayerJobsAssignedEvent ev)
+    {
+        // Generate Codewords 
         var adjectives = _prototypeManager.Index<DatasetPrototype>("adjectives").Values;
         var verbs = _prototypeManager.Index<DatasetPrototype>("verbs").Values;
 
@@ -172,25 +208,15 @@ public sealed class NuclearRuleSystem : GameRuleSystem
             codewords[i] = _random.PickAndTake(codewordPool);
         }
 
-        foreach (var traitor in _traitors)
+        // Give Operatives their codewords to keep in their character info menu
+        foreach (var operative in _operatives)
         {
-            traitor.GreetTraitor(codewords);
+            operative.GreetOperative(codewords);
 
-            //give traitors their objectives
-            var difficulty = 0f;
-            for (var pick = 0; pick < maxPicks && maxDifficulty > difficulty; pick++)
-            {
-                var objective = _objectivesManager.GetRandomObjective(traitor.Mind);
-                if (objective == null) continue;
-                if (traitor.Mind.TryAddObjective(objective))
-                    difficulty += objective.Difficulty;
-            }
-
-            //give traitors their codewords to keep in their character info menu
-            traitor.Mind.Briefing = Loc.GetString("traitor-role-codewords", ("codewords", string.Join(", ",codewords)));
+            operative.Mind.Briefing = Loc.GetString("operative-role-codewords", ("codewords", string.Join(", ", codewords)));
         }
 
-        SoundSystem.Play(Filter.Empty().AddWhere(s => ((IPlayerSession)s).Data.ContentData()?.Mind?.HasRole<TraitorRole>() ?? false), _addedSound.GetSound(), AudioParams.Default);
+        SoundSystem.Play(Filter.Empty().AddWhere(s => ((IPlayerSession)s).Data.ContentData()?.Mind?.HasRole<OperativeRole>() ?? false), _addedSound.GetSound(), AudioParams.Default);
     }
 
     private void OnRoundEndText(RoundEndTextAppendEvent ev)
@@ -198,11 +224,11 @@ public sealed class NuclearRuleSystem : GameRuleSystem
         if (!Enabled)
             return;
 
-        var result = Loc.GetString("traitor-round-end-result", ("traitorCount", _traitors.Count));
+        /*var result = Loc.GetString("nuclear-round-end-result", ("operativeCount", _operatives.Count));
 
-        foreach (var traitor in _traitors)
+        foreach (var operative in _operatives)
         {
-            var name = traitor.Mind.CharacterName;
+            var name = operative.Mind.CharacterName;
             traitor.Mind.TryGetSession(out var session);
             var username = session?.Name;
 
@@ -263,6 +289,6 @@ public sealed class NuclearRuleSystem : GameRuleSystem
             }
         }
 
-        ev.AddLine(result);
+        ev.AddLine(result);*/
     }
 }
