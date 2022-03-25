@@ -57,3 +57,12 @@
   rules:
     - TraitorDeathMatch
     - MaxTimeRestart
+    
+- type: gamePreset
+  id: Nuclear
+  alias:
+    - nuclear
+  name: nuclear-title
+  description: nuclear-description
+  rules:
+    - Nuclear 

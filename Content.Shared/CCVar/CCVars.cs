@@ -253,6 +253,25 @@ namespace Content.Shared.CCVar
 
         public static readonly CVarDef<int> TraitorDeathMatchStartingBalance =
             CVarDef.Create("traitordm.starting_balance", 20);
+            
+        /*
+         * Traitor
+         */
+
+        public static readonly CVarDef<int> TraitorMinPlayers =
+            CVarDef.Create("traitor.min_players", 5);
+
+        public static readonly CVarDef<int> TraitorMaxTraitors =
+            CVarDef.Create("traitor.max_traitors", 7);
+
+        public static readonly CVarDef<int> TraitorPlayersPerTraitor =
+            CVarDef.Create("traitor.players_per_traitor", 5);
+
+        public static readonly CVarDef<int> TraitorCodewordCount =
+            CVarDef.Create("traitor.codeword_count", 4);
+
+        public static readonly CVarDef<int> TraitorStartingBalance =
+            CVarDef.Create("traitor.starting_balance", 20); 
 
         /*
          * Console

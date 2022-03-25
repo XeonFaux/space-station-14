@@ -27,3 +27,8 @@
   - Kitchen
   - Chapel
   - Hydroponics
+  
+- type: accessGroup
+  id: NuclearOperative
+  tags:
+  - Nuclear 

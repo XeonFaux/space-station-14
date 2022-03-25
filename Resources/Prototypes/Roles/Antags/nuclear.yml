@@ -1,0 +1,22 @@
+- type: antag
+  id: Operative
+  name: "Syndicate Operative"
+  antagonist: true
+  setPreference: true
+  objective: "Steal Dah Disk! Failure is not an option."
+
+- type: startingGear
+  id: OperativeGear
+  equipment:
+    jumpsuit: ClothingUniformJumpsuitSec
+    back: ClothingBackpackSecurityFilled
+    shoes: ClothingShoesBootsJack
+    eyes: ClothingEyesGlassesSecurity
+    head: ClothingHeadHelmetHelmetOld
+    outerClothing: ClothingOuterVestKevlar
+    id: SecurityPDA
+    ears: ClothingHeadsetSecurity
+    belt: ClothingBeltSecurityFilled
+  innerclothingskirt: ClothingUniformJumpskirtSec
+  satchel: ClothingBackpackSatchelSecurityFilled
+  duffelbag: ClothingBackpackDuffelSecurityFilled

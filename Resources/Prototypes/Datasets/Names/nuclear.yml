@@ -1,0 +1,104 @@
+- type: dataset
+  id: officer_nuclear
+  values:
+  - Commander
+  - Chief
+  - Officer
+  - Major
+  - Executive
+  - Executor
+  - First 
+  
+- type: dataset
+  id: first_names_nuclear
+  values:
+  - Bonk
+  - Blasto
+  - Blue
+  - Clandestine
+  - Clockwork
+  - Cyber 
+  - Donk
+  - Elec
+  - Electric
+  - Funk
+  - Joint
+  - Gene
+  - Gib
+  - Omni
+  - Max
+  - North
+  - Newton
+  - Prima
+  - Waffle
+  - Watch
+  - Zero-G
+  
+- type: dataset
+  id: first_names_nuclear_christmas
+  values:
+  - Merry
+  - Jingle
+  - Holiday
+  - Santa
+  - Gift
+  - Elf
+  - Jolly
+  - Holly
+  - Present
+  - Saint
+  - Winter
+  - Snow 
+  
+- type: dataset
+  id: first_names_nuclear_halloween
+  values:
+  - Hallow
+  - Hell
+  - Demon
+  - Blood
+  - Murder
+  - Gore
+  - Slaughter
+  - Grave
+  - Sin
+  - Dead
+  - Ghost
+  - Ghoul
+  
+- type: dataset
+  id: last_names_nuclear
+  values:
+  - Syndicate
+  - Syndi
+  - Consortium
+  - Corporation
+  - Corp
+  - Company
+  - Co
+  - Collective
+  - Hive
+  - Mind
+  - Group
+  - Family
+  - Consolidated
+  - Holdings
+  - Industries
+  - BioTech 
+  - Bio
+  - Tech
+  - Tek
+  - X
+  - Code
+  - Systems
+  - Sys
+  - Products
+  - Chemicals
+  - Creations
+  - Enterprises
+  - Cartel
+  - Positronics
+  - Foundation
+  - International
+  - Incorporated
+  - Inc
