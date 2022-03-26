@@ -253,10 +253,13 @@ namespace Content.Shared.CCVar
 
         public static readonly CVarDef<int> TraitorDeathMatchStartingBalance =
             CVarDef.Create("traitordm.starting_balance", 20);
-            
+
         /*
          * Nuclear
          */
+
+        public static readonly CVarDef<string> NuclearMap =
+            CVarDef.Create("nuclear.map", "syndi_infil_base");
 
         public static readonly CVarDef<int> NuclearMinPlayers =
             CVarDef.Create("nuclear.min_players", 5);
@@ -273,7 +276,6 @@ namespace Content.Shared.CCVar
         public static readonly CVarDef<int> NuclearCodewordCount =
             CVarDef.Create("nuclear.codeword_count", 4);
 
-        // They receive 1 loadout + this TC starting balance to buy whatever else they'd like       .
         public static readonly CVarDef<int> NuclearStartingBalance =
             CVarDef.Create("nuclear.starting_balance", 10); 
 

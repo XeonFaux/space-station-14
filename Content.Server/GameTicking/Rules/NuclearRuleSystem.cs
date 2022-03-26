@@ -2,15 +2,20 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Content.Server.Chat.Managers;
+using Content.Server.GameTicking;
 using Content.Server.Objectives.Interfaces;
 using Content.Server.Players;
 using Content.Server.Roles;
-using Content.Server.Spawners.Component;
+using Content.Server.Maps;
 using Content.Server.Nuclear;
+using Content.Server.Spawners.Components;
+using Content.Server.Station;
 using Content.Shared.CCVar;
 using Content.Shared.Dataset;
+using Content.Shared.GameTicking;
 using Content.Shared.Roles;
 using Content.Shared.Sound;
+using Content.Shared.Station;
 using Robust.Server.Player;
 using Robust.Shared.Audio;
 using Robust.Shared.Configuration;
@@ -29,6 +34,7 @@ public sealed class NuclearRuleSystem : GameRuleSystem
 {
     [Dependency] private readonly IPrototypeManager _prototypeManager = default!;
     [Dependency] private readonly IRobustRandom _random = default!;
+    [Dependency] private readonly StationSystem _stationSystem = default!;
     [Dependency] private readonly IConfigurationManager _cfg = default!;
     [Dependency] private readonly IObjectivesManager _objectivesManager = default!;
     [Dependency] private readonly IChatManager _chatManager = default!;
@@ -48,7 +54,7 @@ public sealed class NuclearRuleSystem : GameRuleSystem
         
         SubscribeLocalEvent<LoadingMapsEvent>(LoadMaps);
         SubscribeLocalEvent<RoundStartAttemptEvent>(OnStartAttempt);
-        SubscribeLocalEvent<RulePlayerSpawningEvent>(SpawnOperatives);
+        SubscribeLocalEvent<RulePlayerSpawningEvent>(SpawnOperative);
         SubscribeLocalEvent<RulePlayerJobsAssignedEvent>(OnPlayersSpawned);
         SubscribeLocalEvent<RoundEndTextAppendEvent>(OnRoundEndText);
     }
@@ -63,11 +69,20 @@ public sealed class NuclearRuleSystem : GameRuleSystem
     {
         _operatives.Clear();
     }
-    
+
+
     private void LoadMaps(LoadingMapsEvent ev)
     {
-        // Add syndi maps to map list
-        //ev.Maps.Add(Map);
+        
+        var mapName = _cfg.GetCVar(CCVars.NuclearMap);
+        if (_prototypeManager.TryIndex<GameMapPrototype>(mapName, out var gameMap))
+        {
+            ev.Maps.Add(gameMap);
+        }
+        else
+        {
+            Logger.ErrorS("preset", "Failed getting map for Nuclear mode.");
+        }
     } 
 
     private void OnStartAttempt(RoundStartAttemptEvent ev)
@@ -95,51 +110,51 @@ public sealed class NuclearRuleSystem : GameRuleSystem
     {
         if (!Enabled)
             return;
-        
-        // Get config    
+
+        // Get config
+        var mapName = _cfg.GetCVar(CCVars.NuclearMap);
         var minPlayers = _cfg.GetCVar(CCVars.NuclearMinPlayers);
         var minOperatives = _cfg.GetCVar(CCVars.NuclearMinOperatives);
         var maxOperatives = _cfg.GetCVar(CCVars.NuclearMaxOperatives);
         var playersPerOperative = _cfg.GetCVar(CCVars.NuclearPlayersPerOperative);
-        var codewordCount = _cfg.GetCVar(CCVars.NuclearCodewordCount);
         var startingBalance = _cfg.GetCVar(CCVars.NuclearStartingBalance);
         
         // Get candidate list
-        var prefList = new List<IPlayerSession>(ev.Players);
+        var prefList = new List<IPlayerSession>(ev.PlayerPool);
         
         foreach (var player in prefList)
         {
             if (!ev.Profiles.ContainsKey(player.UserId))
             {
-                prefList.Remove(player)
+                prefList.Remove(player);
                 continue;
             }
             if (!ev.Profiles[player.UserId].AntagPreferences.Contains(OperativePrototypeID))
             {
-                prefList.Remove(player)
+                prefList.Remove(player);
             }
         }
         
         // Choose operatives
-        var numOperatives = MathHelper.Clamp(ev.Players.Length / playersPerOperative, minOperatives, maxOperatives);
+        var numOperatives = MathHelper.Clamp(ev.PlayerPool.Count / playersPerOperative, minOperatives, maxOperatives);
         
         for (var i = 0; i < numOperatives; i++)
         {
             IPlayerSession operative;
             if (prefList.Count == 0)
             {
-                if (ev.Players.Count == 0)
+                if (ev.PlayerPool.Count == 0)
                 {
                     Logger.InfoS("preset", "Insufficient ready players to fill up operatives, stopping the selection.");
                     break;
                 }
-                operative = _random.PickAndTake(ev.Players);
+                operative = _random.PickAndTake(ev.PlayerPool);
                 Logger.InfoS("preset", "Insufficient preferred operatives, picking at random.");
             }
             else
             {
                 operative = _random.PickAndTake(prefList);
-                ev.Players.Remove(operative)
+                ev.PlayerPool.Remove(operative);
                 Logger.InfoS("preset", "Selected a preferred operative.");
             }
             
@@ -154,39 +169,41 @@ public sealed class NuclearRuleSystem : GameRuleSystem
             var operativeRole = new OperativeRole(mind, antagPrototype);
             mind.AddRole(operativeRole);
             _operatives.Add(operativeRole);
-        } 
-        
+        }
+
         // Find Syndicate Station
-        var station;
-        foreach (var (point, transform) in EntityManager.EntityQuery<SpawnPointComponent, TransformComponent>(true))
+        var foundStation = new KeyValuePair<StationId, StationSystem.StationInfoData>();
+        var stations = _stationSystem.StationInfo.ToList();
+        foreach (var station in stations)
         {
-            if (point.Job == OperativePrototypeID)
+            if (station.Value.Name == mapName)
             {
-                var matchingStation = EntityManager.TryGetComponent<StationComponent>(transform.ParentUid, out var stationComponent);
-                if (stationComponent.Station != null)
-                {
-                    station = stationComponent.Station;
-                }
+                foundStation = station;
             }
         }
         
-        if (station == null)
+        if (foundStation.Key == StationId.Invalid)
         {
             Logger.ErrorS("preset", "Failed finding station for Nuclear mode.");
         }
         
         // Spawn Operatives
-        foreach (var player in _operatives)
+        foreach (var operative in _operatives)
         {
-            var character = GetPlayerProfile(plaver);
+            var player = operative.Mind?.Session;
+            if (player == null)
+            {
+                Logger.ErrorS("preset", "Unable to find operative session.");
+                continue;
+            }
 
-            PlayerJoinGame(player);
+            GameTicker.PlayerJoinGame(player);
             
             var mind = player.ContentData()?.Mind;
-            DebugTools.AssertNotNull(mind):
+            DebugTools.AssertNotNull(mind);
             
-            var mob = SpawnPlayerMob(OperativeRole, character, station, false);
-            mind.TransferTo(mob);
+            //var mob = GameTicker.SpawnPlayerMob(OperativeRole, character, station, false);
+            //mind.TransferTo(mob);
         }
         
         // Pick Commander
@@ -196,6 +213,8 @@ public sealed class NuclearRuleSystem : GameRuleSystem
 
     private void OnPlayersSpawned(RulePlayerJobsAssignedEvent ev)
     {
+        var codewordCount = _cfg.GetCVar(CCVars.NuclearCodewordCount);
+
         // Generate Codewords 
         var adjectives = _prototypeManager.Index<DatasetPrototype>("adjectives").Values;
         var verbs = _prototypeManager.Index<DatasetPrototype>("verbs").Values;
