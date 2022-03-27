@@ -1,6 +1,7 @@
 using Robust.Shared.Prototypes;
 using Robust.Shared.Serialization.Manager.Attributes;
 using Robust.Shared.ViewVariables;
+using Robust.Shared.Serialization.TypeSerializers.Implementations.Custom.Prototype;
 
 namespace Content.Shared.Roles
 {
@@ -37,5 +38,11 @@ namespace Content.Shared.Roles
         /// </summary>
         [DataField("setPreference")]
         public bool SetPreference { get; private set; }
+
+        /// <summary>
+        ///     Whether or not the antagonist role receives any starting gear.
+        /// </summary>
+        [DataField("startingGear", customTypeSerializer: typeof(PrototypeIdSerializer<StartingGearPrototype>))]
+        public string? StartingGear { get; private set; }
     }
 }

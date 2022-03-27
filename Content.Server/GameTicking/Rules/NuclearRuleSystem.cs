@@ -2,26 +2,32 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Content.Server.Chat.Managers;
+using Content.Server.CharacterAppearance.Systems;
 using Content.Server.GameTicking;
 using Content.Server.Objectives.Interfaces;
 using Content.Server.Players;
 using Content.Server.Roles;
 using Content.Server.Maps;
 using Content.Server.Nuclear;
+using Content.Server.Preferences.Managers;
 using Content.Server.Spawners.Components;
 using Content.Server.Station;
 using Content.Shared.CCVar;
 using Content.Shared.Dataset;
 using Content.Shared.GameTicking;
+using Content.Shared.Preferences;
 using Content.Shared.Roles;
 using Content.Shared.Sound;
+using Content.Shared.Species;
 using Content.Shared.Station;
+using Content.Shared.Random.Helpers;
 using Robust.Server.Player;
 using Robust.Shared.Audio;
 using Robust.Shared.Configuration;
 using Robust.Shared.IoC;
 using Robust.Shared.Localization;
 using Robust.Shared.Log;
+using Robust.Shared.Map;
 using Robust.Shared.Maths;
 using Robust.Shared.Player;
 using Robust.Shared.Prototypes;
@@ -38,6 +44,8 @@ public sealed class NuclearRuleSystem : GameRuleSystem
     [Dependency] private readonly IConfigurationManager _cfg = default!;
     [Dependency] private readonly IObjectivesManager _objectivesManager = default!;
     [Dependency] private readonly IChatManager _chatManager = default!;
+    [Dependency] private readonly IServerPreferencesManager _prefsManager = default!;
+    [Dependency] private readonly HumanoidAppearanceSystem _humanoidAppearanceSystem = default!;
 
     public override string Prototype => "Nuclear";
 
@@ -229,41 +237,52 @@ public sealed class NuclearRuleSystem : GameRuleSystem
         ev.AddLine(result);*/
     }
     
-    private bool SpawnOperatives()
+    private List<EntityUid> SpawnOperatives()
     {
+        List<EntityUid> entities = new List<EntityUid>();
+
         foreach (var operative in _operatives)
         {
-            var mind = operative.Mind?;
-            if (mind == null)
+            var mind = operative.Mind;
+            var session = mind.Session;
+
+            if (session == null)
             {
-                Logger.ErrorS("preset", "Unable to find operative mind.");
+                Logger.ErrorS("preset", "Unable to find operative session.");
                 continue;
             }
-            
-            var session = mind.Session;
+
             GameTicker.PlayerJoinGame(session);
-            
-            var spawnPoint = GetSpawnPoint(GetStation());
+
+            var profile = _prefsManager.GetPreferences(session.UserId).SelectedCharacter as HumanoidCharacterProfile;
+
+            var spawnPoint = GetSpawnPoint(GetStation().Key);
             var entity = EntityManager.SpawnEntity(
                 _prototypeManager.Index<SpeciesPrototype>(profile?.Species ?? SpeciesManager.DefaultSpecies).Prototype,
                 spawnPoint);
-            
-            var startingGear
-_prototypeManager.Index<StartingGearPrototype»(job.StartingGear);
-            EquipStartingGear(entity, startingGear, profile);
-            
-            _humanoidAppearanceSystem.UpdateFromProfile(entity,
-profile);
-            EntityManager.GetComponent<MetaDataComponent>(entity).EntityName
-profile.Name;
 
+            if (operative.StartingGear != null)
+            {
+                var startingGear = _prototypeManager.Index<StartingGearPrototype>(operative.StartingGear);
+                GameTicker.EquipStartingGear(entity, startingGear, profile);
+            }
+
+            if (profile != null)
+            {
+                _humanoidAppearanceSystem.UpdateFromProfile(entity, profile);
+                EntityManager.GetComponent<MetaDataComponent>(entity).EntityName = profile.Name;
+            }
+
+            entities.Add(entity);
         }
+
+        return entities;
     } 
     
     private EntityCoordinates GetSpawnPoint(StationId station)
     {
-        EntityCoordinates spawnPoint;
-        List<EntityCoordinates> _possiblePositions = new();
+        EntityCoordinates spawnPoint = new EntityCoordinates();
+        List<EntityCoordinates> possiblePositions = new();
 
         foreach (var (point, transform) in EntityManager.EntityQuery<SpawnPointComponent, TransformComponent>(true))
         {
@@ -273,11 +292,11 @@ profile.Name;
                 DebugTools.Assert(EntityManager.TryGetComponent<IMapGridComponent>(transform.ParentUid, out _));
 
             if (point.SpawnType == SpawnPointType.Antag && matchingStation)
-                    _possiblePositions.Add(transform.Coordinates);
+                    possiblePositions.Add(transform.Coordinates);
         }
 
-        if (_possiblePositions.Count != 0)
-            spawnPoint = _robustRandom.Pick(_possiblePositions);
+        if (possiblePositions.Count != 0)
+            spawnPoint = _random.Pick(possiblePositions);
 
         return spawnPoint;
     }
@@ -286,6 +305,9 @@ profile.Name;
     {
         KeyValuePair<StationId, StationSystem.StationInfoData> foundStation = new ();
         var stations = _stationSystem.StationInfo.ToList();
+
+        var mapName = _cfg.GetCVar(CCVars.NuclearMap);
+
         foreach (var station in stations)
         {
             if (station.Value.Name == mapName)
@@ -327,6 +349,7 @@ profile.Name;
                 prefList.Remove(player);
                 backList.Remove(player);
                 continue;
+            }
             
             // Does not have Antag preference on
             if (!ev.Profiles[player.UserId].AntagPreferences.Contains(OperativePrototypeID))
@@ -343,32 +366,36 @@ profile.Name;
             IPlayerSession operative;
             if (prefList.Count == 0)
             {
-                if (backList.Count == 0)
-                {
-                    if (TotalOperatives > minOperatives)
-                    {
-                        Logger.InfoS("preset", $"Only {TotalOperatives}/{numOperatives} Operatives were found. Stopping search.");
-                        break;
-                    }
-                    else
-                    {
-                        Logger.InfoS("preset", "Insufficient ready players to fill up operatives, stopping the selection.");
-                        return false;
-                    }
-                }
-                operative = _random.PickAndTake(backList);
-                Logger.InfoS("preset", $"Operative #{TotalOperatives + 1}: Random, due to insufficient preferred operatives.");
+            if (backList.Count == 0)
+            {
+            if (TotalOperatives > minOperatives)
+            {
+            Logger.InfoS("preset", $"Only {TotalOperatives}/{numOperatives} Operatives were found. Stopping search.");
+            break;
             }
             else
             {
-                operative = _random.PickAndTake(prefList);
-                Logger.InfoS("preset", $"Operative #{TotalOperatives + 1}: Preferred");
+            Logger.InfoS("preset", "Insufficient ready players to fill up operatives, stopping the selection.");
+            return false;
+            }
+            }
+            operative = _random.PickAndTake(backList);
+            Logger.InfoS("preset", $"Operative #{TotalOperatives + 1}: Random, due to insufficient preferred operatives.");
+            }
+            else
+            {
+            operative = _random.PickAndTake(prefList);
+            Logger.InfoS("preset", $"Operative #{TotalOperatives + 1}: Preferred");
             }
             
             // Remove from spawning pool
             ev.PlayerPool.Remove(operative);
-            
-            var mind = operative.Data.ContentData()?.Mind:
+
+            var mind = operative.Data.ContentData()?.Mind;
+            if (mind == null)
+            {
+            continue;
+            }
             
             // Give role 
             var antagPrototype = _prototypeManager.Index<AntagPrototype>(OperativePrototypeID);
@@ -395,7 +422,7 @@ profile.Name;
     
     private string GenerateAgentTitle()
     {
-        var agentTitle = _random.Pick(_prototypeManager.Index<DatasetPrototype>("agent_title_nuclear"));
+        string agentTitle = _random.Pick(_prototypeManager.Index<DatasetPrototype>("agent_title_nuclear"));
         
         return new string($"{agentTitle}");
     }

@@ -70,8 +70,8 @@ public abstract class GameRuleSystem : EntitySystem
     /// <summary>
     ///     Returns a list of antagonist candidates.
     /// </summary>
-    public abstract void GetCandidates(var type, var number
+    /*public void GetCandidates(var type, var number)
     {
     
-    }
+    }*/
 }
