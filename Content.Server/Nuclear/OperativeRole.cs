@@ -10,15 +10,17 @@ namespace Content.Server.Nuclear
     {
         public AntagPrototype Prototype { get; }
 
-        public OperativeRole(Mind.Mind mind, AntagPrototype antagPrototype) : base(mind)
+        public OperativeRole(Mind.Mind mind, AntagPrototype antagPrototype, bool isCommander = false) : base(mind)
         {
             Prototype = antagPrototype;
             Name = antagPrototype.Name;
             Antagonist = antagPrototype.Antagonist;
+            IsCommander = isCommander;
         }
 
         public override string Name { get; }
         public override bool Antagonist { get; }
+        public bool IsCommander { get; }
 
         public void GreetOperative(string[] codewords)
         {

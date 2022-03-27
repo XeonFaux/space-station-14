@@ -1,5 +1,5 @@
 - type: dataset
-  id: officer_nuclear
+  id: commander_title_nuclear
   values:
   - Commander
   - Chief
@@ -7,7 +7,17 @@
   - Major
   - Executive
   - Executor
-  - First 
+  - First
+  - Leader
+  
+- type: dataset
+  id: agent_title_nuclear
+  values:
+  - Agent
+  - Operative
+  - Syndicate
+  - Arm
+  - Hand
   
 - type: dataset
   id: first_names_nuclear
@@ -77,6 +87,7 @@
   - Company
   - Co
   - Collective
+  - Conglomerate
   - Hive
   - Mind
   - Group

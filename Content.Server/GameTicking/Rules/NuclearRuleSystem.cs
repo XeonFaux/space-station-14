@@ -54,7 +54,7 @@ public sealed class NuclearRuleSystem : GameRuleSystem
         
         SubscribeLocalEvent<LoadingMapsEvent>(LoadMaps);
         SubscribeLocalEvent<RoundStartAttemptEvent>(OnStartAttempt);
-        SubscribeLocalEvent<RulePlayerSpawningEvent>(SpawnOperative);
+        SubscribeLocalEvent<RulePlayerSpawningEvent>(SpawningOverride);
         SubscribeLocalEvent<RulePlayerJobsAssignedEvent>(OnPlayersSpawned);
         SubscribeLocalEvent<RoundEndTextAppendEvent>(OnRoundEndText);
     }
@@ -106,107 +106,25 @@ public sealed class NuclearRuleSystem : GameRuleSystem
         }
     }
     
-    private void SpawnOperative(RulePlayerSpawningEvent ev)
+    private void SpawningOverride(RulePlayerSpawningEvent ev)
     {
         if (!Enabled)
             return;
 
         // Get config
         var mapName = _cfg.GetCVar(CCVars.NuclearMap);
-        var minPlayers = _cfg.GetCVar(CCVars.NuclearMinPlayers);
-        var minOperatives = _cfg.GetCVar(CCVars.NuclearMinOperatives);
-        var maxOperatives = _cfg.GetCVar(CCVars.NuclearMaxOperatives);
-        var playersPerOperative = _cfg.GetCVar(CCVars.NuclearPlayersPerOperative);
         var startingBalance = _cfg.GetCVar(CCVars.NuclearStartingBalance);
         
-        // Get candidate list
-        var prefList = new List<IPlayerSession>(ev.PlayerPool);
-        
-        foreach (var player in prefList)
+        if (!PickOperatives(ev))
         {
-            if (!ev.Profiles.ContainsKey(player.UserId))
-            {
-                prefList.Remove(player);
-                continue;
-            }
-            if (!ev.Profiles[player.UserId].AntagPreferences.Contains(OperativePrototypeID))
-            {
-                prefList.Remove(player);
-            }
+            Logger.ErrorS("preset", "Failed to find Operatives for Nuke Ops");
         }
         
-        // Choose operatives
-        var numOperatives = MathHelper.Clamp(ev.PlayerPool.Count / playersPerOperative, minOperatives, maxOperatives);
-        
-        for (var i = 0; i < numOperatives; i++)
-        {
-            IPlayerSession operative;
-            if (prefList.Count == 0)
-            {
-                if (ev.PlayerPool.Count == 0)
-                {
-                    Logger.InfoS("preset", "Insufficient ready players to fill up operatives, stopping the selection.");
-                    break;
-                }
-                operative = _random.PickAndTake(ev.PlayerPool);
-                Logger.InfoS("preset", "Insufficient preferred operatives, picking at random.");
-            }
-            else
-            {
-                operative = _random.PickAndTake(prefList);
-                ev.PlayerPool.Remove(operative);
-                Logger.InfoS("preset", "Selected a preferred operative.");
-            }
-            
-            var mind = operative.Data.ContentData()?.Mind;
-            if (mind == null)
-            {
-                Logger.ErrorS("preset", "Failed getting mind for picked operative.");
-                continue;
-            }
-            
-            var antagPrototype = _prototypeManager.Index<AntagPrototype>(OperativePrototypeID);
-            var operativeRole = new OperativeRole(mind, antagPrototype);
-            mind.AddRole(operativeRole);
-            _operatives.Add(operativeRole);
-        }
-
         // Find Syndicate Station
-        var foundStation = new KeyValuePair<StationId, StationSystem.StationInfoData>();
-        var stations = _stationSystem.StationInfo.ToList();
-        foreach (var station in stations)
-        {
-            if (station.Value.Name == mapName)
-            {
-                foundStation = station;
-            }
-        }
         
-        if (foundStation.Key == StationId.Invalid)
-        {
-            Logger.ErrorS("preset", "Failed finding station for Nuclear mode.");
-        }
         
-        // Spawn Operatives
-        foreach (var operative in _operatives)
-        {
-            var player = operative.Mind?.Session;
-            if (player == null)
-            {
-                Logger.ErrorS("preset", "Unable to find operative session.");
-                continue;
-            }
-
-            GameTicker.PlayerJoinGame(player);
-            
-            var mind = player.ContentData()?.Mind;
-            DebugTools.AssertNotNull(mind);
-            
-            //var mob = GameTicker.SpawnPlayerMob(OperativeRole, character, station, false);
-            //mind.TransferTo(mob);
-        }
         
-        // Pick Commander
+        
         // Generate Group name
         // Assign ID w/ balance
     }
@@ -310,4 +228,184 @@ public sealed class NuclearRuleSystem : GameRuleSystem
 
         ev.AddLine(result);*/
     }
+    
+    private bool SpawnOperatives()
+    {
+        foreach (var operative in _operatives)
+        {
+            var mind = operative.Mind?;
+            if (mind == null)
+            {
+                Logger.ErrorS("preset", "Unable to find operative mind.");
+                continue;
+            }
+            
+            var session = mind.Session;
+            GameTicker.PlayerJoinGame(session);
+            
+            var spawnPoint = GetSpawnPoint(GetStation());
+            var entity = EntityManager.SpawnEntity(
+                _prototypeManager.Index<SpeciesPrototype>(profile?.Species ?? SpeciesManager.DefaultSpecies).Prototype,
+                spawnPoint);
+            
+            var startingGear
+_prototypeManager.Index<StartingGearPrototype»(job.StartingGear);
+            EquipStartingGear(entity, startingGear, profile);
+            
+            _humanoidAppearanceSystem.UpdateFromProfile(entity,
+profile);
+            EntityManager.GetComponent<MetaDataComponent>(entity).EntityName
+profile.Name;
+
+        }
+    } 
+    
+    private EntityCoordinates GetSpawnPoint(StationId station)
+    {
+        EntityCoordinates spawnPoint;
+        List<EntityCoordinates> _possiblePositions = new();
+
+        foreach (var (point, transform) in EntityManager.EntityQuery<SpawnPointComponent, TransformComponent>(true))
+        {
+            var matchingStation =
+                    EntityManager.TryGetComponent<StationComponent>(transform.ParentUid, out var stationComponent) &&
+                    stationComponent.Station == station;
+                DebugTools.Assert(EntityManager.TryGetComponent<IMapGridComponent>(transform.ParentUid, out _));
+
+            if (point.SpawnType == SpawnPointType.Antag && matchingStation)
+                    _possiblePositions.Add(transform.Coordinates);
+        }
+
+        if (_possiblePositions.Count != 0)
+            spawnPoint = _robustRandom.Pick(_possiblePositions);
+
+        return spawnPoint;
+    }
+    
+    private KeyValuePair<StationId, StationSystem.StationInfoData> GetStation()
+    {
+        KeyValuePair<StationId, StationSystem.StationInfoData> foundStation = new ();
+        var stations = _stationSystem.StationInfo.ToList();
+        foreach (var station in stations)
+        {
+            if (station.Value.Name == mapName)
+            {
+                foundStation = station;
+            }
+        }
+        
+        if (foundStation.Key == StationId.Invalid)
+        {
+            Logger.ErrorS("preset", "Failed finding station for Nuclear mode.");
+        }
+        
+        return foundStation;
+    } 
+    
+    private bool PickOperatives(RulePlayerSpawningEvent ev)
+    {
+        var minPlayers = _cfg.GetCVar(CCVars.NuclearMinPlayers);
+        var minOperatives = _cfg.GetCVar(CCVars.NuclearMinOperatives);
+        var maxOperatives = _cfg.GetCVar(CCVars.NuclearMaxOperatives);
+        var playersPerOperative = _cfg.GetCVar(CCVars.NuclearPlayersPerOperative);
+        
+        var prefList = new List<IPlayerSession>(ev.PlayerPool);
+        var backList = new List<IPlayerSession>(ev.PlayerPool);
+        
+        foreach (var player in prefList)
+        {
+            // Not a player
+            if (!ev.Profiles.ContainsKey(player.UserId))
+            {
+                prefList.Remove(player);
+                backList.Remove(player);
+                continue;
+            }
+            // Not connected
+            if (player.Data.ContentData()?.Mind == null)
+            {
+                prefList.Remove(player);
+                backList.Remove(player);
+                continue;
+            
+            // Does not have Antag preference on
+            if (!ev.Profiles[player.UserId].AntagPreferences.Contains(OperativePrototypeID))
+            {
+                prefList.Remove(player);
+            }
+        }
+        
+        // Choose operatives
+        var numOperatives = MathHelper.Clamp(ev.PlayerPool.Count / playersPerOperative, minOperatives, maxOperatives);
+        
+        while (TotalOperatives < numOperatives)
+        {
+            IPlayerSession operative;
+            if (prefList.Count == 0)
+            {
+                if (backList.Count == 0)
+                {
+                    if (TotalOperatives > minOperatives)
+                    {
+                        Logger.InfoS("preset", $"Only {TotalOperatives}/{numOperatives} Operatives were found. Stopping search.");
+                        break;
+                    }
+                    else
+                    {
+                        Logger.InfoS("preset", "Insufficient ready players to fill up operatives, stopping the selection.");
+                        return false;
+                    }
+                }
+                operative = _random.PickAndTake(backList);
+                Logger.InfoS("preset", $"Operative #{TotalOperatives + 1}: Random, due to insufficient preferred operatives.");
+            }
+            else
+            {
+                operative = _random.PickAndTake(prefList);
+                Logger.InfoS("preset", $"Operative #{TotalOperatives + 1}: Preferred");
+            }
+            
+            // Remove from spawning pool
+            ev.PlayerPool.Remove(operative);
+            
+            var mind = operative.Data.ContentData()?.Mind:
+            
+            // Give role 
+            var antagPrototype = _prototypeManager.Index<AntagPrototype>(OperativePrototypeID);
+            var operativeRole = new OperativeRole(mind, antagPrototype);
+            mind.AddRole(operativeRole);
+            _operatives.Add(operativeRole);
+        }
+        
+        // Pick Commander
+        _random.Pick(_operatives).IsCommander = true;
+        return true;
+    }
+
+#region Name Generation
+
+    private string GenerateSyndicateName()
+    {
+        // Need to allow Holiday names in the future.
+        var groupFirstName = _random.Pick(_prototypeManager.Index<DatasetPrototype>("first_names_nuclear"));
+        var groupLastName = _random.Pick(_prototypeManager.Index<DatasetPrototype>("last_names_nuclear"));
+        
+        return new string($"{groupFirstName} {groupLastName}");
+    }
+    
+    private string GenerateAgentTitle()
+    {
+        var agentTitle = _random.Pick(_prototypeManager.Index<DatasetPrototype>("agent_title_nuclear"));
+        
+        return new string($"{agentTitle}");
+    }
+    
+    private string GenerateCommanderTitle()
+    {
+        var commanderTitle = _random.Pick(_prototypeManager.Index<DatasetPrototype>("commander_title_nuclear"));
+        
+        return new string($"{commanderTitle}");
+    }
+    
+#endregion 
 }

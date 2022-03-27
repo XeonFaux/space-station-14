@@ -66,4 +66,12 @@ public abstract class GameRuleSystem : EntitySystem
     ///     Called when the game rule has ended..
     /// </summary>
     public abstract void Ended();
+    
+    /// <summary>
+    ///     Returns a list of antagonist candidates.
+    /// </summary>
+    public abstract void GetCandidates(var type, var number
+    {
+    
+    }
 }

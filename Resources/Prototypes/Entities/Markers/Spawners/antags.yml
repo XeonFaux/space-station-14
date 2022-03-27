@@ -1,0 +1,19 @@
+- type: entity
+  name: nuclear operative spawn point
+  id: SpawnPointNuclearOperative
+  parent: SpawnPointJobBase
+  components:
+  - type: Sprite
+    state: red
+  - type: SpawnPoint
+    spawn_type: Antag
+
+- type: entity
+  name: nuclear commander spawn point
+  id: SpawnPointNuclearCommander
+  parent: SpawnPointJobBase
+  components:
+  - type: Sprite
+    state: red
+  - type: SpawnPoint
+    spawn_type: Antag 

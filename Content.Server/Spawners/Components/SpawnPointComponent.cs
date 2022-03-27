@@ -31,5 +31,6 @@ namespace Content.Server.Spawners.Components
         LateJoin,
         Job,
         Observer,
+        Antag,
     }
 }
