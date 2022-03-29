@@ -746,3 +746,8 @@
   - type: Clothing
     sprite: Clothing/Uniforms/Jumpsuit/hosformal.rsi 
      
+- type: entity
+  parent: ClothingUniformBase
+  id: ClothingUniformJumpsuitSyndicate
+  name: tactical turtleneck
+  description: A robust and slightly suspicious turleneck jumpsuit.

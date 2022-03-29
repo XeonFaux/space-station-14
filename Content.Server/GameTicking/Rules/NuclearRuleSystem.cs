@@ -47,6 +47,11 @@ public sealed class NuclearRuleSystem : GameRuleSystem
     private const string OperativePrototypeID = "Operative";
 
     public int TotalOperatives => _operatives.Count;
+    
+    private string SyndicateName;
+    private string AgentTitle;
+    private string CommanderTitle;
+    private string FamilyName;
 
     public override void Initialize()
     {
@@ -120,13 +125,7 @@ public sealed class NuclearRuleSystem : GameRuleSystem
             Logger.ErrorS("preset", "Failed to find Operatives for Nuke Ops");
         }
         
-        // Find Syndicate Station
         
-        
-        
-        
-        // Generate Group name
-        // Assign ID w/ balance
     }
 
     private void OnPlayersSpawned(RulePlayerJobsAssignedEvent ev)
@@ -249,7 +248,7 @@ public sealed class NuclearRuleSystem : GameRuleSystem
                 spawnPoint);
             
             var startingGear
-_prototypeManager.Index<StartingGearPrototype»(job.StartingGear);
+_prototypeManager.Index<StartingGearPrototype»(operative.StartingGear);
             EquipStartingGear(entity, startingGear, profile);
             
             _humanoidAppearanceSystem.UpdateFromProfile(entity,
@@ -260,6 +259,7 @@ profile.Name;
         }
     } 
     
+    // possibly return point itself instead of coords
     private EntityCoordinates GetSpawnPoint(StationId station)
     {
         EntityCoordinates spawnPoint;
@@ -378,6 +378,7 @@ profile.Name;
         }
         
         // Pick Commander
+        // Eventually gonna make this transfer over to another operative on commander death, copy access/codes. Make it a function in OperativeRole
         _random.Pick(_operatives).IsCommander = true;
         return true;
     }
@@ -386,25 +387,49 @@ profile.Name;
 
     private string GenerateSyndicateName()
     {
-        // Need to allow Holiday names in the future.
-        var groupFirstName = _random.Pick(_prototypeManager.Index<DatasetPrototype>("first_names_nuclear"));
-        var groupLastName = _random.Pick(_prototypeManager.Index<DatasetPrototype>("last_names_nuclear"));
+        if (SyndicateName.IsNullOrEmpty())
+        {
+            // Need to allow Holiday names in the future. 
+            var groupFirstName = _random.Pick(_prototypeManager.Index<DatasetPrototype>("first_names_nuclear"));
+            var groupLastName = _random.Pick(_prototypeManager.Index<DatasetPrototype>("last_names_nuclear"));
         
-        return new string($"{groupFirstName} {groupLastName}");
+            SyndicateName = new string($"{groupFirstName} {groupLastName}");
+        }
+        
+        return SyndicateName
     }
     
     private string GenerateAgentTitle()
     {
-        var agentTitle = _random.Pick(_prototypeManager.Index<DatasetPrototype>("agent_title_nuclear"));
+        if (AgentTitle.IsNullOrEmpty())
+        {
+            var title = _random.Pick(_prototypeManager.Index<DatasetPrototype>("agent_title_nuclear"));
         
-        return new string($"{agentTitle}");
+            AgentTitle = new string($"{title}");
+        }
+        
+        return AgentTitle;
     }
     
     private string GenerateCommanderTitle()
     {
-        var commanderTitle = _random.Pick(_prototypeManager.Index<DatasetPrototype>("commander_title_nuclear"));
+        if (CommanderTitle.IsNullOrEmpty())
+        {
+            var title = _random.Pick(_prototypeManager.Index<DatasetPrototype>("commander_title_nuclear"));
         
-        return new string($"{commanderTitle}");
+            CommanderTitle = new string($"{title}");
+        }
+        
+        return CommanderTitle;
+    }
+    
+    private string GetOfficialName(OperativeRole operative)
+    {
+        string syndicateName = GenerateSyndicateName();
+        string title = operative.IsCommander ? GenerateCommanderTitle() : GenerateAgentTitle();
+        string lastName;
+        
+        return new string($"{syndicateName} {title} {lastName}")
     }
     
 #endregion 
