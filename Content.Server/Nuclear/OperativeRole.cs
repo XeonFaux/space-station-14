@@ -20,7 +20,11 @@ namespace Content.Server.Nuclear
 
         public override string Name { get; }
         public override bool Antagonist { get; }
-        public bool IsCommander { get; }
+
+        [ViewVariables]
+        public string? StartingGear => Prototype.StartingGear;
+
+        public bool IsCommander { get; set; }
 
         public void GreetOperative(string[] codewords)
         {
