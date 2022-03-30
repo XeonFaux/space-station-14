@@ -304,8 +304,10 @@
         Piercing: 0.7
         Heat: 0.8 
         Radiation: 0.25
-        
-- type: entity
+
+# Nuke Ops WIP
+
+- type: entity #Standard
   parent: ClothingOuterHardsuitBase
   id: ClothingOuterHardsuitSyndie
   name: blood red hardsuit
@@ -329,7 +331,133 @@
         Piercing: 0.4
         Heat: 0.4 #all the combat numbers are pumped up here
         Radiation: 0.20
+        
+- type: entity #Assault
+  parent: ClothingOuterHardsuitBase
+  id: ClothingOuterHardsuitSyndieAssault
+  name: tactical assault hardsuit
+  description: A dual-mode advanced hardsuit designed for work in special operations.
+  components:
+  - type: Sprite
+    sprite: Clothing/OuterClothing/Hardsuits/syndicate.rsi
+  - type: Clothing
+    sprite: Clothing/OuterClothing/Hardsuits/syndicate.rsi
+  - type: PressureProtection
+    highPressureMultiplier: 0.45
+    lowPressureMultiplier: 100
+  - type: ClothingSpeedModifier
+    walkModifier: 1.0
+    sprintModifier: 1.0
+  - type: Armor
+    modifiers:
+      coefficients:
+        Blunt: 0.6
+        Slash: 0.55
+        Piercing: 0.4
+        Heat: 0.4 #all the combat numbers are pumped up here
+        Radiation: 0.20
 
+- type: entity # Heavy
+  parent: ClothingOuterHardsuitBase
+  id: ClothingOuterHardsuitSyndieHeavy
+  name: tactical heavy hardsuit
+  description: A dual-mode advanced hardsuit designed for maximum protection at the expense of movement speed.
+  components:
+  - type: Sprite
+    sprite: Clothing/OuterClothing/Hardsuits/syndicate.rsi
+  - type: Clothing
+    sprite: Clothing/OuterClothing/Hardsuits/syndicate.rsi
+  - type: PressureProtection
+    highPressureMultiplier: 0.45
+    lowPressureMultiplier: 100
+  - type: ClothingSpeedModifier
+    walkModifier: 0.60
+    sprintModifier: 0.50
+  - type: Armor
+    modifiers:
+      coefficients:
+        Blunt: 0.30
+        Slash: 0.30
+        Piercing: 0.40
+        Heat: 0.40
+        Radiation: 0.50
+
+- type: entity # Medical
+  parent: ClothingOuterHardsuitBase
+  id: ClothingOuterHardsuitSyndieMedical
+  name: tactical medical hardsuit
+  description: A dual-mode advanced hardsuit designed for work in special operations.
+  components:
+  - type: Sprite
+    sprite: Clothing/OuterClothing/Hardsuits/syndicate.rsi
+  - type: Clothing
+    sprite: Clothing/OuterClothing/Hardsuits/syndicate.rsi
+  - type: PressureProtection
+    highPressureMultiplier: 0.45
+    lowPressureMultiplier: 100
+  - type: ClothingSpeedModifier
+    walkModifier: 1.0
+    sprintModifier: 1.0
+  - type: Armor
+    modifiers:
+      coefficients:
+        Blunt: 0.80
+        Slash: 0.80
+        Piercing: 0.85
+        Heat: 0.40
+        Radiation: 0.05
+        
+ - type: entity # Engineer
+  parent: ClothingOuterHardsuitBase
+  id: ClothingOuterHardsuitSyndieEngineer
+  name: tactical engineer hardsuit
+  description: A dual-mode advanced hardsuit designed for work in special operations.
+  components:
+  - type: Sprite
+    sprite: Clothing/OuterClothing/Hardsuits/syndicate.rsi
+  - type: Clothing
+    sprite: Clothing/OuterClothing/Hardsuits/syndicate.rsi
+  - type: PressureProtection
+    highPressureMultiplier: 0.45
+    lowPressureMultiplier: 100
+  - type: ClothingSpeedModifier
+    walkModifier: 1.0
+    sprintModifier: 1.0
+  - type: Armor
+    modifiers:
+      coefficients:
+        Blunt: 0.6
+        Slash: 0.55
+        Piercing: 0.4
+        Heat: 0.4 #all the combat numbers are pumped up here
+        Radiation: 0.20
+        
+- type: entity # Infiltration
+  parent: ClothingOuterHardsuitBase
+  id: ClothingOuterHardsuitSyndieInfiltration
+  name: tactical stealth hardsuit
+  description: A dual-mode advanced hardsuit designed for work in special operations.
+  components:
+  - type: Sprite
+    sprite: Clothing/OuterClothing/Hardsuits/syndicate.rsi
+  - type: Clothing
+    sprite: Clothing/OuterClothing/Hardsuits/syndicate.rsi
+  - type: PressureProtection
+    highPressureMultiplier: 0.45
+    lowPressureMultiplier: 100
+  - type: ClothingSpeedModifier
+    walkModifier: 1.0
+    sprintModifier: 1.0
+  - type: Armor
+    modifiers:
+      coefficients:
+        Blunt: 0.6
+        Slash: 0.55
+        Piercing: 0.4
+        Heat: 0.4 #all the combat numbers are pumped up here
+        Radiation: 0.20
+
+  # Wizard
 - type: entity
   parent: ClothingOuterHardsuitBase
   id: ClothingOuterHardsuitWizard

@@ -60,6 +60,21 @@ public sealed class NuclearRuleSystem : GameRuleSystem
     private string AgentTitle;
     private string CommanderTitle;
     private string FamilyName;
+    
+    private string MapName;
+
+
+    /*
+        // To-Do
+        // GetSpawnPoint(): Get specific Antagonist spawn point (Commander & Agent spawn points)
+        // OnRoundEndText(): Generate round summary text for objectives and nuke
+        // Name Generation: Add generation of Holiday names
+        // Generate team objectives besides nuke disk / detonate
+        // Make Access/Authentication codes transfer to another Operative on Commander's death. Make choosing a Commander a function in OperativeRole
+        // Add capability of multiple maps for operative spawns (Maybe in the future operatives start on different ships or team is split up.)
+        // Add post-spawning uplink setup
+    */
+
 
     public override void Initialize()
     {
@@ -74,7 +89,6 @@ public sealed class NuclearRuleSystem : GameRuleSystem
 
     public override void Started()
     {
-        // This seems silly, but I'll leave it.
         _chatManager.DispatchServerAnnouncement(Loc.GetString("rule-nuclear-added-announcement"));
     }
 
@@ -83,12 +97,13 @@ public sealed class NuclearRuleSystem : GameRuleSystem
         _operatives.Clear();
     }
 
-
+    /// <summary>
+    ///     Called before maps are loaded. Add specific gamemode maps to the round map list to be loaded.
+    /// </summary>
     private void LoadMaps(LoadingMapsEvent ev)
-    {
-        
-        var mapName = _cfg.GetCVar(CCVars.NuclearMap);
-        if (_prototypeManager.TryIndex<GameMapPrototype>(mapName, out var gameMap))
+    {    
+        MapName = _cfg.GetCVar(CCVars.NuclearMap);
+        if (_prototypeManager.TryIndex<GameMapPrototype>(MapName, out var gameMap))
         {
             ev.Maps.Add(gameMap);
         }
@@ -96,8 +111,11 @@ public sealed class NuclearRuleSystem : GameRuleSystem
         {
             Logger.ErrorS("preset", "Failed getting map for Nuclear mode.");
         }
-    } 
-
+    }
+     
+    /// <summary>
+    ///     Called upon round start attenpt. If conditions for gamemode are not met, cancel the start attempt.
+    /// </summary>
     private void OnStartAttempt(RoundStartAttemptEvent ev)
     {
         if (!Enabled)
@@ -119,6 +137,9 @@ public sealed class NuclearRuleSystem : GameRuleSystem
         }
     }
     
+    /// <summary>
+    ///     Called before players are spawned. Pull specific players out of the spawning queue and handle their spawning manually. Useful for spawning out-of-station antags.
+    /// </summary>
     private void SpawningOverride(RulePlayerSpawningEvent ev)
     {
         if (!Enabled)
@@ -128,14 +149,38 @@ public sealed class NuclearRuleSystem : GameRuleSystem
         var mapName = _cfg.GetCVar(CCVars.NuclearMap);
         var startingBalance = _cfg.GetCVar(CCVars.NuclearStartingBalance);
         
-        if (!PickOperatives(ev))
+        var operatives = PickPlayers(ev);
+        
+        foreach (var operative in operatives)
         {
-            Logger.ErrorS("preset", "Failed to find Operatives for Nuke Ops");
+            // Check if player is still active
+            var mind = operative.Data.ContentData()?.Mind;
+            if (mind == null)
+            {
+                continue;
+            }
+            
+            // Remove from spawning pool
+            ev.PlayerPool.Remove(operative);
+            
+            // Give role 
+            var antagPrototype = _prototypeManager.Index<AntagPrototype>(OperativePrototypeID);
+            var operativeRole = new OperativeRole(mind, antagPrototype);
+            mind.AddRole(operativeRole);
+            _operatives.Add(operativeRole);
         }
         
+        // Pick Commander
+        _random.Pick(_operatives).IsCommander = true;
+
+        var station = GetStation(mapName);
         
+        SpawnOperatives(ev, station);
     }
 
+    /// <summary>
+    ///     Called after players are spawned. Adds useful antag notes.
+    /// </summary>
     private void OnPlayersSpawned(RulePlayerJobsAssignedEvent ev)
     {
         var codewordCount = _cfg.GetCVar(CCVars.NuclearCodewordCount);
@@ -163,80 +208,49 @@ public sealed class NuclearRuleSystem : GameRuleSystem
         SoundSystem.Play(Filter.Empty().AddWhere(s => ((IPlayerSession)s).Data.ContentData()?.Mind?.HasRole<OperativeRole>() ?? false), _addedSound.GetSound(), AudioParams.Default);
     }
 
+    /// <summary>
+    ///     Called upon round ending. Generates round end summary.
+    /// </summary>
     private void OnRoundEndText(RoundEndTextAppendEvent ev)
     {
         if (!Enabled)
             return;
 
-        /*var result = Loc.GetString("nuclear-round-end-result", ("operativeCount", _operatives.Count));
-
+        var result = Loc.GetString("nuclear-round-end-result", ("operativeCount", _operatives.Count));
+        
+        // Show operatives 
         foreach (var operative in _operatives)
         {
             var name = operative.Mind.CharacterName;
-            traitor.Mind.TryGetSession(out var session);
+            operative.Mind.TryGetSession(out var session);
             var username = session?.Name;
-
-            var objectives = traitor.Mind.AllObjectives.ToArray();
-            if (objectives.Length == 0)
-            {
-                if (username != null)
-                {
-                    if (name == null)
-                        result += "\n" + Loc.GetString("traitor-user-was-a-traitor", ("user", username));
-                    else
-                        result += "\n" + Loc.GetString("traitor-user-was-a-traitor-named", ("user", username), ("name", name));
-                }
-                else if (name != null)
-                    result += "\n" + Loc.GetString("traitor-was-a-traitor-named", ("name", name));
-
-                continue;
-            }
 
             if (username != null)
             {
-                if (name == null)
-                    result += "\n" + Loc.GetString("traitor-user-was-a-traitor-with-objectives", ("user", username));
+                if (name != null)
+                    result += "\n" + Loc.GetString("nuclear-user-was-an-operative-named", ("user", username), ("name", name));
                 else
-                    result += "\n" + Loc.GetString("traitor-user-was-a-traitor-with-objectives-named", ("user", username), ("name", name));
+                    result += "\n" + Loc.GetString("nuclear-user-was-an-operative", ("user", username));
             }
             else if (name != null)
-                result += "\n" + Loc.GetString("traitor-was-a-traitor-with-objectives-named", ("name", name));
-
-            foreach (var objectiveGroup in objectives.GroupBy(o => o.Prototype.Issuer))
-            {
-                result += "\n" + Loc.GetString($"preset-traitor-objective-issuer-{objectiveGroup.Key}");
-
-                foreach (var objective in objectiveGroup)
-                {
-                    foreach (var condition in objective.Conditions)
-                    {
-                        var progress = condition.Progress;
-                        if (progress > 0.99f)
-                        {
-                            result += "\n- " + Loc.GetString(
-                                "traitor-objective-condition-success",
-                                ("condition", condition.Title),
-                                ("markupColor", "green")
-                            );
-                        }
-                        else
-                        {
-                            result += "\n- " + Loc.GetString(
-                                "traitor-objective-condition-fail",
-                                ("condition", condition.Title),
-                                ("progress", (int) (progress * 100)),
-                                ("markupColor", "red")
-                            );
-                        }
-                    }
-                }
-            }
+                result += "\n" + Loc.GetString("nuclear-was-an-operative-named", ("name", name));
         }
-
-        ev.AddLine(result);*/
+        
+        ev.AddLine(result);
     }
     
-    private List<EntityUid> SpawnOperatives()
+#region Helper Functions
+
+    // Adds an uplink to the operative
+    /*private void addUplink(OperativeRole operative)
+    {
+        var uplinkAccount = new UplinkAccount(startingBalance, owned);
+        var accounts = EntityManager.EntitySysManager.GetEntitySystem<UplinkAccountsSystem>();
+        accounts.AddNewAccount(uplinkAccount);
+    }*/
+
+    // Spawns operatives and returns a list of Entity Ids.
+    private List<EntityUid> SpawnOperatives(RulePlayerSpawningEvent ev, StationId station)
     {
         List<EntityUid> entities = new List<EntityUid>();
 
@@ -253,9 +267,8 @@ public sealed class NuclearRuleSystem : GameRuleSystem
 
             GameTicker.PlayerJoinGame(session);
 
-            var profile = _prefsManager.GetPreferences(session.UserId).SelectedCharacter as HumanoidCharacterProfile;
-
-            var spawnPoint = GetSpawnPoint(GetStation().Key);
+            var profile = ev.Profiles[session.UserId].Value;
+            var spawnPoint = GetSpawnPoint(station);
             var entity = EntityManager.SpawnEntity(
                 _prototypeManager.Index<SpeciesPrototype>(profile?.Species ?? SpeciesManager.DefaultSpecies).Prototype,
                 spawnPoint);
@@ -278,8 +291,8 @@ public sealed class NuclearRuleSystem : GameRuleSystem
         return entities;
     } 
     
-    // possibly return point itself instead of coords
-    private EntityCoordinates GetSpawnPoint(StationId station)
+    // Returns random antagonist spawn point for specified station.
+    private EntityCoordinates GetSpawnPoint(StationId stationId)
     {
         EntityCoordinates spawnPoint = new EntityCoordinates();
         List<EntityCoordinates> possiblePositions = new();
@@ -288,7 +301,7 @@ public sealed class NuclearRuleSystem : GameRuleSystem
         {
             var matchingStation =
                     EntityManager.TryGetComponent<StationComponent>(transform.ParentUid, out var stationComponent) &&
-                    stationComponent.Station == station;
+                    stationComponent.Station == stationId;
                 DebugTools.Assert(EntityManager.TryGetComponent<IMapGridComponent>(transform.ParentUid, out _));
 
             if (point.SpawnType == SpawnPointType.Antag && matchingStation)
@@ -301,16 +314,14 @@ public sealed class NuclearRuleSystem : GameRuleSystem
         return spawnPoint;
     }
     
-    private KeyValuePair<StationId, StationSystem.StationInfoData> GetStation()
+    // Returns StationId for specified station name. 
+    private StationId GetStation(string stationName)
     {
         KeyValuePair<StationId, StationSystem.StationInfoData> foundStation = new ();
-        var stations = _stationSystem.StationInfo.ToList();
 
-        var mapName = _cfg.GetCVar(CCVars.NuclearMap);
-
-        foreach (var station in stations)
+        foreach (var station in _stationSystem.StationInfo.ToList();)
         {
-            if (station.Value.Name == mapName)
+            if (station.Value.Name == stationName)
             {
                 foundStation = station;
             }
@@ -318,13 +329,14 @@ public sealed class NuclearRuleSystem : GameRuleSystem
         
         if (foundStation.Key == StationId.Invalid)
         {
-            Logger.ErrorS("preset", "Failed finding station for Nuclear mode.");
+            Logger.ErrorS("preset", $"(GetStation({stationName}) failed finding station.");
         }
         
-        return foundStation;
+        return foundStation.Key;
     } 
     
-    private bool PickOperatives(RulePlayerSpawningEvent ev)
+    // Returns a randomly chosen list of players for the antag positions
+    private List<IPlayerSession> PickPlayers(RulePlayerSpawningEvent ev)
     {
         var minPlayers = _cfg.GetCVar(CCVars.NuclearMinPlayers);
         var minOperatives = _cfg.GetCVar(CCVars.NuclearMinOperatives);
@@ -343,6 +355,7 @@ public sealed class NuclearRuleSystem : GameRuleSystem
                 backList.Remove(player);
                 continue;
             }
+            
             // Not connected
             if (player.Data.ContentData()?.Mind == null)
             {
@@ -358,7 +371,7 @@ public sealed class NuclearRuleSystem : GameRuleSystem
             }
         }
         
-        // Choose operatives
+        var chosenList = new List<IPlayerSession>();
         var numOperatives = MathHelper.Clamp(ev.PlayerPool.Count / playersPerOperative, minOperatives, maxOperatives);
         
         while (TotalOperatives < numOperatives)
@@ -366,57 +379,39 @@ public sealed class NuclearRuleSystem : GameRuleSystem
             IPlayerSession operative;
             if (prefList.Count == 0)
             {
-            if (backList.Count == 0)
-            {
-            if (TotalOperatives > minOperatives)
-            {
-            Logger.InfoS("preset", $"Only {TotalOperatives}/{numOperatives} Operatives were found. Stopping search.");
-            break;
+                if (backList.Count == 0)
+                {
+                    if (TotalOperatives > minOperatives)
+                    {
+                        Logger.InfoS("preset", $"Only {TotalOperatives}/{numOperatives} Operatives were found. Stopping search.");
+                        break;
+                    }
+                    else
+                    {
+                        Logger.InfoS("preset", "Insufficient ready players to fill up operatives, stopping the selection.");
+                        return null;
+                    }
+                }
+                chosenList.Add(_random.PickAndTake(backList));
+                Logger.InfoS("preset", $"Operative #{TotalOperatives + 1}: Random, due to insufficient preferred operatives.");
             }
             else
             {
-            Logger.InfoS("preset", "Insufficient ready players to fill up operatives, stopping the selection.");
-            return false;
+                chosenList.Add(_random.PickAndTake(prefList));
+                Logger.InfoS("preset", $"Operative #{TotalOperatives + 1}: Preferred");
             }
-            }
-            operative = _random.PickAndTake(backList);
-            Logger.InfoS("preset", $"Operative #{TotalOperatives + 1}: Random, due to insufficient preferred operatives.");
-            }
-            else
-            {
-            operative = _random.PickAndTake(prefList);
-            Logger.InfoS("preset", $"Operative #{TotalOperatives + 1}: Preferred");
-            }
-            
-            // Remove from spawning pool
-            ev.PlayerPool.Remove(operative);
-
-            var mind = operative.Data.ContentData()?.Mind;
-            if (mind == null)
-            {
-            continue;
-            }
-            
-            // Give role 
-            var antagPrototype = _prototypeManager.Index<AntagPrototype>(OperativePrototypeID);
-            var operativeRole = new OperativeRole(mind, antagPrototype);
-            mind.AddRole(operativeRole);
-            _operatives.Add(operativeRole);
         }
         
-        // Pick Commander
-        // Eventually gonna make this transfer over to another operative on commander death, copy access/codes. Make it a function in OperativeRole
-        _random.Pick(_operatives).IsCommander = true;
-        return true;
+        return chosenList;
     }
 
 #region Name Generation
 
+    // Returns Syndicate organization name (Ex. Bonk Corp)
     private string GenerateSyndicateName()
     {
         if (SyndicateName.IsNullOrEmpty())
         {
-            // Need to allow Holiday names in the future. 
             var groupFirstName = _random.Pick(_prototypeManager.Index<DatasetPrototype>("first_names_nuclear"));
             var groupLastName = _random.Pick(_prototypeManager.Index<DatasetPrototype>("last_names_nuclear"));
         
@@ -426,6 +421,7 @@ public sealed class NuclearRuleSystem : GameRuleSystem
         return SyndicateName
     }
     
+    // Returns operative title prefix (Ex. Agent)
     private string GenerateAgentTitle()
     {
         if (AgentTitle.IsNullOrEmpty())
@@ -438,6 +434,7 @@ public sealed class NuclearRuleSystem : GameRuleSystem
         return AgentTitle;
     }
     
+    // Returns commander title prefix (Ex. Commander)
     private string GenerateCommanderTitle()
     {
         if (CommanderTitle.IsNullOrEmpty())
@@ -450,14 +447,16 @@ public sealed class NuclearRuleSystem : GameRuleSystem
         return CommanderTitle;
     }
     
+    // Returns operative full name (Ex. Bonk Corp Agent Smith)
     private string GetOfficialName(OperativeRole operative)
     {
         string syndicateName = GenerateSyndicateName();
         string title = operative.IsCommander ? GenerateCommanderTitle() : GenerateAgentTitle();
-        string lastName;
+        string lastName = _random.Pick(_prototypeManager.Index<DatasetPrototype>("names_last"));;
         
         return new string($"{syndicateName} {title} {lastName}")
     }
     
-#endregion 
+#endregion Name Generation
+#endregion Helper Functions
 }
