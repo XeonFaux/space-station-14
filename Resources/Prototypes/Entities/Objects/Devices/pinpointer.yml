@@ -29,3 +29,23 @@
   components:
   - type: Pinpointer
     component: NukeDisk
+
+- type: entity
+  name: pinpointer
+  id: PinpointerNukeOperative
+  parent: PinpointerBase
+  components:
+  - type: Pinpointer
+    component: NukeDisk
+  # Find Commander
+  # Find Infiltrator Ship
+  
+- type: entity
+  name: pinpointer
+  id: PinpointerNukeCommander
+  parent: PinpointerBase
+  components:
+  - type: Pinpointer
+    component: NukeDisk
+  # Find Operatives
+  # Find Infiltrator Ship 
